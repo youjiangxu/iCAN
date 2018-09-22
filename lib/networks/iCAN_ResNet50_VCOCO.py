@@ -212,7 +212,7 @@ class ResNet50():
             fc1         = slim.dropout(fc1, keep_prob=0.8, is_training=is_training, scope='dropout1_b')
             fc1         = tf.reshape(fc1, [tf.shape(fc1)[0], 1, 1, tf.shape(fc1)[1]])
             att         = tf.reduce_mean(tf.multiply(bottom, fc1), 3, keep_dims=True)
-        return att
+        return att, fc1
 
 
     def attention_norm_H(self, att, name):
@@ -226,13 +226,17 @@ class ResNet50():
             att         = tf.transpose(att, [0, 2, 3, 1])
         return att
 
-    def attention_pool_layer_O(self, bottom, fc7_O, is_training, name):
+    def attention_pool_layer_O(self, bottom, fc7_O, fc2, is_training, name):
         with tf.variable_scope(name) as scope:
+
 
             fc1         = slim.fully_connected(fc7_O, 512, scope='fc1_b')
             fc1         = slim.dropout(fc1, keep_prob=0.8, is_training=is_training, scope='dropout1_b')
             fc1         = tf.reshape(fc1, [tf.shape(fc1)[0], 1, 1, tf.shape(fc1)[1]])
-            att         = tf.reduce_mean(tf.multiply(bottom, fc1), 3, keep_dims=True)
+
+
+
+            att         = tf.reduce_mean(tf.add(tf.multiply(bottom, fc1), tf.multipy(bottom, fc2)), 3, keep_dims=True)
         return att
 
 
@@ -306,17 +310,18 @@ class ResNet50():
         fc7_H, fc7_O = self.res5(pool5_H, pool5_O, sp, is_training, 'res5')
 
         # Phi 
-        head_phi = slim.conv2d(head, 512, [1, 1], scope='head_phi')
+        head_phi = slim.conv2d(head, 512, [1, 1], scope='head_phi') ## [-1, H, W, 512]
 
         # g 
         head_g   = slim.conv2d(head, 512, [1, 1], scope='head_g')
 
-        Att_H      = self.attention_pool_layer_H(head_phi, fc7_H[:self.H_num,:], is_training, 'Att_H')
+        Att_H, fc2      = self.attention_pool_layer_H(head_phi, fc7_H[:self.H_num,:], is_training, 'Att_H')
         Att_H      = self.attention_norm_H(Att_H, 'Norm_Att_H')
 
-        att_head_H = tf.multiply(head_g, Att_H)
+        att_head_H = tf.multiply(head_g, Att_H) ## att_head_H -- [-1, H, W, 512]
 
-        Att_O      = self.attention_pool_layer_O(head_phi, fc7_O, is_training, 'Att_O')
+
+        Att_O      = self.attention_pool_layer_O(head_phi, fc7_O, fc2, is_training, 'Att_O')
         Att_O      = self.attention_norm_O(Att_O, 'Norm_Att_O')
         att_head_O = tf.multiply(head_g, Att_O)
 
