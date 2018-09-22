@@ -236,7 +236,7 @@ class ResNet50():
 
 
 
-            att         = tf.reduce_mean(tf.add(tf.multiply(bottom, fc1), tf.multipy(bottom, fc2)), 3, keep_dims=True)
+            att         = tf.reduce_mean(tf.add(tf.multiply(bottom, fc1), tf.multiply(bottom, fc2)), 3, keep_dims=True)
         return att
 
 
