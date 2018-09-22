@@ -37,6 +37,8 @@ def parse_args():
     parser.add_argument('--Neg_select', dest='Neg_select',
             help='Number of Negative example selected for each image',
             default=30, type=int)
+    parser.add_argument('--run_name', dest='run_name',
+            help='set output dir and saved dir flags', default='hoi_idea', type=str)
     args = parser.parse_args()
     return args
 
@@ -52,10 +54,10 @@ if __name__ == '__main__':
     weight    = cfg.ROOT_DIR + '/Weights/res50_faster_rcnn_iter_1190000.ckpt'
 
     # output directory where the logs are saved
-    tb_dir     = cfg.ROOT_DIR + '/logs/' + args.model + '/'
+    tb_dir     = cfg.ROOT_DIR + '/logs/' + args.model + '_' + args.run_name + '/'
 
     # output directory where the models are saved
-    output_dir = cfg.ROOT_DIR + '/Weights/' + args.model + '/'
+    output_dir = cfg.ROOT_DIR + '/Weights/' + args.model+ '_' + args.run_name + '/'
 
     if args.model == 'iCAN_ResNet50_VCOCO':
         from networks.iCAN_ResNet50_VCOCO import ResNet50
