@@ -129,7 +129,7 @@ class ResNet50():
         return pool2_flat_sp
 
 
-    def res5(self, pool5_H, pool5_O, sp, is_training, name):
+    def res5(self, pool5_H, pool5_O, is_training, name):
         with slim.arg_scope(resnet_arg_scope(is_training=is_training)):
 
             fc7_H, _ = resnet_v1.resnet_v1(pool5_H,
@@ -153,7 +153,7 @@ class ResNet50():
         
         return fc7_H, fc7_O
 
-    def head_to_tail(self, fc7_H, fc7_O, pool5_SH, pool5_SO, sp, is_training, name):
+    def head_to_tail(self, fc7_H, fc7_O, pool5_SH, pool5_SO, is_training, name):
         with slim.arg_scope(resnet_arg_scope(is_training=is_training)):
 
             fc7_SH = tf.reduce_mean(pool5_SH, axis=[1, 2])
@@ -175,14 +175,14 @@ class ResNet50():
             fc9_SO        = slim.dropout(fc9_SO,    keep_prob=0.5, is_training=is_training, scope='dropout9_SO')  
 
 
-            Concat_SHsp   = tf.concat([fc7_H, sp], 1)
-            Concat_SHsp   = slim.fully_connected(Concat_SHsp, self.num_fc, scope='Concat_SHsp')
-            Concat_SHsp   = slim.dropout(Concat_SHsp, keep_prob=0.5, is_training=is_training, scope='dropout6_SHsp')
-            fc7_SHsp      = slim.fully_connected(Concat_SHsp, self.num_fc, scope='fc7_SHsp')
-            fc7_SHsp      = slim.dropout(fc7_SHsp,  keep_prob=0.5, is_training=is_training, scope='dropout7_SHsp')
+            # Concat_SHsp   = tf.concat([fc7_H, sp], 1)
+            # Concat_SHsp   = slim.fully_connected(Concat_SHsp, self.num_fc, scope='Concat_SHsp')
+            # Concat_SHsp   = slim.dropout(Concat_SHsp, keep_prob=0.5, is_training=is_training, scope='dropout6_SHsp')
+            # fc7_SHsp      = slim.fully_connected(Concat_SHsp, self.num_fc, scope='fc7_SHsp')
+            # fc7_SHsp      = slim.dropout(fc7_SHsp,  keep_prob=0.5, is_training=is_training, scope='dropout7_SHsp')
 
 
-        return fc9_SH, fc9_SO, fc7_SHsp
+        return fc9_SH, fc9_SO
 
     def crop_pool_layer(self, bottom, rois, name):
         with tf.variable_scope(name) as scope:
@@ -251,7 +251,7 @@ class ResNet50():
             att         = tf.transpose(att, [0, 2, 3, 1])
         return att
 
-    def region_classification(self, fc7_H, fc7_O, fc7_SHsp, is_training, initializer, name):
+    def region_classification(self, fc7_H, fc7_O, is_training, initializer, name):
         with tf.variable_scope(name) as scope:
             cls_score_H  = slim.fully_connected(fc7_H, self.num_classes, 
                                                weights_initializer=initializer,
@@ -260,31 +260,45 @@ class ResNet50():
             cls_prob_H   = tf.nn.sigmoid(cls_score_H, name='cls_prob_H') 
             tf.reshape(cls_prob_H, [1, self.num_classes])   
 
-            cls_score_O  = slim.fully_connected(fc7_O, self.num_classes, 
+            Concat_HO     = tf.concat([fc7_H, fc7_O], 1)
+
+
+            cls_score_O  = slim.fully_connected(Concat_HO, self.num_classes, 
                                                weights_initializer=initializer,
                                                trainable=is_training,
                                                activation_fn=None, scope='cls_score_O')
             cls_prob_O  = tf.nn.sigmoid(cls_score_O, name='cls_prob_O') 
             tf.reshape(cls_prob_O, [1, self.num_classes]) 
 
-            cls_score_sp = slim.fully_connected(fc7_SHsp, self.num_classes, 
-                                               weights_initializer=initializer,
-                                               trainable=is_training,
-                                               activation_fn=None, scope='cls_score_sp')
-            cls_prob_sp  = tf.nn.sigmoid(cls_score_sp, name='cls_prob_sp') 
-            tf.reshape(cls_prob_sp, [1, self.num_classes]) 
+
+            # Concat_HO     = tf.concat([fc7_H, fc7_O], 1)
+            # cls_prob_HO_final = slim.fully_connected(Concat_HO, self.num_classes, 
+            #                                    weights_initializer=initializer,
+            #                                    trainable=is_training,
+            #                                    activation_fn=None, scope='cls_prob_HO_final')
+            # cls_prob_HO_final = tf.nn.sigmoid(cls_prob_HO_final, name='cls_prob_HO_final') 
+            # tf.reshape(cls_prob_HO_final, [1, self.num_classes]) 
+
+            # cls_score_sp = slim.fully_connected(fc7_SHsp, self.num_classes, 
+            #                                    weights_initializer=initializer,
+            #                                    trainable=is_training,
+            #                                    activation_fn=None, scope='cls_score_sp')
+            # cls_prob_sp = tf.nn.sigmoid(cls_score_sp, name='cls_prob_sp') 
+            # tf.reshape(cls_prob_sp, [1, self.num_classes]) 
 
 
             self.predictions["cls_score_H"] = cls_score_H
             self.predictions["cls_prob_H"]  = cls_prob_H
             self.predictions["cls_score_O"] = cls_score_O
             self.predictions["cls_prob_O"]  = cls_prob_O
-            self.predictions["cls_score_sp"] = cls_score_sp
-            self.predictions["cls_prob_sp"]  = cls_prob_sp
+            # self.predictions["cls_score_sp"] = cls_score_sp
+            # self.predictions["cls_prob_sp"]  = cls_prob_sp
 
-            self.predictions["cls_prob_HO_final"]  = cls_prob_sp * (cls_prob_O + cls_prob_H)
+            # self.predictions["cls_prob_HO_final"]  = cls_prob_sp * (cls_prob_O + cls_prob_H)
+            # self.predictions["cls_prob_HO_final"]  = (cls_prob_O + cls_prob_H)
+            # self.predictions["cls_prob_HO_final"] = cls_prob_HO_final * (cls_prob_O + cls_prob_H)
 
-        return cls_prob_H, cls_prob_O, cls_prob_sp
+        return cls_prob_H, cls_prob_O
 
     def bottleneck(self, bottom, is_training, name, reuse=False):
         with tf.variable_scope(name) as scope:
@@ -303,11 +317,11 @@ class ResNet50():
 
         # ResNet Backbone
         head       = self.image_to_head(is_training)
-        sp         = self.sp_to_head()
+        # sp         = self.sp_to_head()
         pool5_H    = self.crop_pool_layer(head, self.Hsp_boxes, 'Crop_H')
         pool5_O    = self.crop_pool_layer(head, self.O_boxes,   'Crop_O')
 
-        fc7_H, fc7_O = self.res5(pool5_H, pool5_O, sp, is_training, 'res5')
+        fc7_H, fc7_O = self.res5(pool5_H, pool5_O, is_training, 'res5')
 
         # Phi 
         head_phi = slim.conv2d(head, 512, [1, 1], scope='head_phi') ## [-1, H, W, 512]
@@ -329,21 +343,21 @@ class ResNet50():
         pool5_SO     = self.bottleneck(att_head_O, is_training, 'bottleneck', True)
 
 
-        fc7_SH, fc7_SO, fc7_SHsp = self.head_to_tail(fc7_H, fc7_O, pool5_SH, pool5_SO, sp, is_training, 'fc_HO')
+        fc7_SH, fc7_SO = self.head_to_tail(fc7_H, fc7_O, pool5_SH, pool5_SO, is_training, 'fc_HO')
 
-        cls_prob_H, cls_prob_O, cls_prob_sp = self.region_classification(fc7_SH, fc7_SO, fc7_SHsp, is_training, initializer, 'classification')
+        cls_prob_H, cls_prob_O = self.region_classification(fc7_SH, fc7_SO, is_training, initializer, 'classification')
 
         self.score_summaries.update(self.predictions)
 
         self.visualize["attention_map_H"] = (Att_H - tf.reduce_min(Att_H[0,:,:,:])) / tf.reduce_max((Att_H[0,:,:,:] - tf.reduce_min(Att_H[0,:,:,:])))
         self.visualize["attention_map_O"] = (Att_O - tf.reduce_min(Att_O[0,:,:,:])) / tf.reduce_max((Att_O[0,:,:,:] - tf.reduce_min(Att_O[0,:,:,:])))
-        return cls_prob_H, cls_prob_O, cls_prob_sp
+        return cls_prob_H, cls_prob_O
 
 
 
     def create_architecture(self, is_training):
 
-        cls_prob_H, cls_prob_O, cls_prob_sp = self.build_network(is_training)
+        cls_prob_H, cls_prob_O = self.build_network(is_training)
 
         for var in tf.trainable_variables():
             self.train_summaries.append(var)
@@ -377,26 +391,27 @@ class ResNet50():
         with tf.variable_scope('LOSS') as scope:
             cls_score_H  = self.predictions["cls_score_H"]
             cls_score_O  = self.predictions["cls_score_O"]
-            cls_score_sp = self.predictions["cls_score_sp"]
+            # cls_prob_HO_final = self.predictions["cls_prob_HO_final"]
 
             label_H      = self.gt_class_H
             label_HO     = self.gt_class_HO
-            label_sp     = self.gt_class_sp
+            # label_sp     = self.gt_class_sp
 
             H_mask       = self.Mask_H
             HO_mask      = self.Mask_HO
-            sp_mask      = self.Mask_sp
+            # sp_mask      = self.Mask_sp
 
             H_cross_entropy  = tf.reduce_mean(tf.multiply(tf.nn.sigmoid_cross_entropy_with_logits(labels = label_H,  logits = cls_score_H),   H_mask))
             HO_cross_entropy = tf.reduce_mean(tf.multiply(tf.nn.sigmoid_cross_entropy_with_logits(labels = label_HO, logits = cls_score_O),  HO_mask))
-            sp_cross_entropy = tf.reduce_mean(tf.multiply(tf.nn.sigmoid_cross_entropy_with_logits(labels = label_sp, logits = cls_score_sp), sp_mask))
+            # sp_cross_entropy = tf.reduce_mean(tf.multiply(tf.nn.sigmoid_cross_entropy_with_logits(labels = label_sp, logits = cls_score_sp), sp_mask))
 
 
             self.losses['H_cross_entropy']  = H_cross_entropy
             self.losses['HO_cross_entropy'] = HO_cross_entropy
-            self.losses['sp_cross_entropy'] = sp_cross_entropy
+            # self.losses['sp_cross_entropy'] = sp_cross_entropy
 
-            loss = 2 * H_cross_entropy + HO_cross_entropy + sp_cross_entropy
+            # loss = 2 * H_cross_entropy + HO_cross_entropy + sp_cross_entropy
+            loss = 2 * H_cross_entropy + HO_cross_entropy
 
             self.losses['total_loss'] = loss
             self.event_summaries.update(self.losses)
