@@ -19,7 +19,7 @@ import random
 from random import randint
 import tensorflow as tf
 import cv2
-from config import cfg
+from lib.ult.config import cfg
 
 def bbox_trans(human_box_ori, object_box_ori, ratio, size = 64):
 
