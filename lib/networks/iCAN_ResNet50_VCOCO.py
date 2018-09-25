@@ -260,10 +260,10 @@ class ResNet50():
             cls_prob_H   = tf.nn.sigmoid(cls_score_H, name='cls_prob_H') 
             tf.reshape(cls_prob_H, [1, self.num_classes])   
 
-            Concat_HO     = tf.concat([fc7_H, fc7_O], 1)
+            #Concat_HO     = tf.concat([fc7_H, fc7_O], 1)
 
 
-            cls_score_O  = slim.fully_connected(Concat_HO, self.num_classes, 
+            cls_score_O  = slim.fully_connected(fc7_O, self.num_classes, 
                                                weights_initializer=initializer,
                                                trainable=is_training,
                                                activation_fn=None, scope='cls_score_O')
@@ -297,7 +297,7 @@ class ResNet50():
             # self.predictions["cls_prob_HO_final"]  = cls_prob_sp * (cls_prob_O + cls_prob_H)
             # self.predictions["cls_prob_HO_final"]  = (cls_prob_O + cls_prob_H)
             # self.predictions["cls_prob_HO_final"] = cls_prob_HO_final * (cls_prob_O + cls_prob_H)
-
+            self.predictions["cls_prob_HO_final"] = cls_prob_O
         return cls_prob_H, cls_prob_O
 
     def bottleneck(self, bottom, is_training, name, reuse=False):
