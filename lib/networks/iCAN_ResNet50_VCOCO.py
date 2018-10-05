@@ -153,7 +153,7 @@ class ResNet50():
         
         return fc7_H, fc7_O
 
-    def head_to_tail(self, fc7_H, fc7_O, pool5_SH, pool5_SO, sp, is_training, name):
+    def head_to_tail(self, fc7_H, fc7_O, pool5_SH, pool5_SO, sp, hdfg_H, hdfg_O, is_training, name):
         with slim.arg_scope(resnet_arg_scope(is_training=is_training)):
 
             fc7_SH = tf.reduce_mean(pool5_SH, axis=[1, 2])
@@ -175,7 +175,7 @@ class ResNet50():
             fc9_SO        = slim.dropout(fc9_SO,    keep_prob=0.5, is_training=is_training, scope='dropout9_SO')  
 
 
-            Concat_SHsp   = tf.concat([fc7_H, sp], 1)
+            Concat_SHsp   = tf.concat([fc7_H, sp, hdfg_H, hdfg_O], 1)
             Concat_SHsp   = slim.fully_connected(Concat_SHsp, self.num_fc, scope='Concat_SHsp')
             Concat_SHsp   = slim.dropout(Concat_SHsp, keep_prob=0.5, is_training=is_training, scope='dropout6_SHsp')
             fc7_SHsp      = slim.fully_connected(Concat_SHsp, self.num_fc, scope='fc7_SHsp')
@@ -204,6 +204,49 @@ class ResNet50():
             else:
                 crops = tf.image.crop_and_resize(bottom, bboxes, tf.to_int32(batch_ids), [cfg.POOLING_SIZE, cfg.POOLING_SIZE], name="crops")
         return crops
+
+    def high_dimentional_geometry_feature_layer(self, rois, feat_dim, name, wave_length=1000):
+        with tf.variable_scope(name) as scope:
+
+            # batch_ids    = tf.squeeze(tf.slice(rois, [0, 0], [-1, 1], name="batch_id"), [1])
+            # bottom_shape = tf.shape(bottom)
+            # height       = (tf.to_float(bottom_shape[1]) - 1.) * np.float32(self.stride[0])
+            # width        = (tf.to_float(bottom_shape[2]) - 1.) * np.float32(self.stride[0])
+            # x1 = tf.slice(rois, [0, 1], [-1, 1], name="bbox_x1") / width
+            # y1 = tf.slice(rois, [0, 2], [-1, 1], name="bbox_y1") / height
+            # x2 = tf.slice(rois, [0, 3], [-1, 1], name="bbox_x2") / width
+            # y2 = tf.slice(rois, [0, 4], [-1, 1], name="bbox_y2") / height
+            x1 = tf.slice(rois, [0, 1], [-1, 1], name="bbox_x1")
+            y1 = tf.slice(rois, [0, 2], [-1, 1], name="bbox_y1") 
+            x2 = tf.slice(rois, [0, 3], [-1, 1], name="bbox_x2")
+            y2 = tf.slice(rois, [0, 4], [-1, 1], name="bbox_y2")
+            bboxes        = tf.stop_gradient(tf.concat([y1, x1, y2, x2], axis=1))
+
+            feat_range = tf.range(0, feat_dim / 8, delta=1, dtype=None, name='range')
+            dim_mat = tf.pow(tf.ones((1,), dtype=tf.float32, name=None) * wave_length, (8. / feat_dim) * feat_range, name="pow")
+            dim_mat = tf.reshape(dim_mat,shape=(1, 1, -1))
+            bboxes = tf.reshape(bboxes*100.0, shape=(-1, 4, 1))
+            div_mat = tf.divide(bboxes, dim_mat)
+            sin_mat = tf.math.sin(div_mat, name="sin_mat")
+            cos_mat = tf.math.cos(div_mat, name="cos_mat")
+
+            embedding = tf.concat([sin_mat, cos_mat], dim=-1)
+            embedding = tf.reshape(embedding, shape=(-1,feat_dim))
+
+
+            # feat_range = nd.arange(0, feat_dim / 8)
+            # dim_mat = nd.broadcast_power(lhs=nd.full((1,), wave_length),
+            #                                  rhs=(8. / feat_dim) * feat_range)
+            # dim_mat = nd.Reshape(dim_mat, shape=(1, 1, 1, 1, -1))
+            # position_mat = nd.expand_dims(100.0 * position_mat, axis=4)
+            # div_mat = nd.broadcast_div(lhs=position_mat, rhs=dim_mat)
+            # sin_mat = nd.sin(data=div_mat)
+            # cos_mat = nd.cos(data=div_mat)
+            # # embedding, [num_fg_classes, num_rois, num_rois, 4, feat_dim/4]
+            # embedding = nd.concat(sin_mat, cos_mat, dim=4)
+            # embedding = nd.Reshape(embedding, shape=(0, 0, 0, feat_dim))
+            return embedding
+            
 
     def attention_pool_layer_H(self, bottom, fc7_H, is_training, name):
         with tf.variable_scope(name) as scope:
@@ -323,8 +366,15 @@ class ResNet50():
         pool5_SH     = self.bottleneck(att_head_H, is_training, 'bottleneck', False)
         pool5_SO     = self.bottleneck(att_head_O, is_training, 'bottleneck', True)
 
+        ## add high-dimensional geometry features (hdfg)
+        hdgf_H = self.high_dimentional_geometry_feature_layer(self.Hsp_boxes, 1024, "hdfg_H", wave_length=1000)
+        hdgf_O = self.high_dimentional_geometry_feature_layer(self.O_boxe, 1024, "hdfg_O", wave_length=1000)
+        print('###',hdfg_H.get_shape().as_list())
+        print('###',hdgf_O.get_shape().as_list())
 
-        fc7_SH, fc7_SO, fc7_SHsp = self.head_to_tail(fc7_H, fc7_O, pool5_SH, pool5_SO, sp, is_training, 'fc_HO')
+        fc7_SH, fc7_SO, fc7_SHsp = self.head_to_tail(fc7_H, fc7_O, pool5_SH, pool5_SO, sp, hdfg_H, hdfg_O, is_training, 'fc_HO')
+
+
 
         cls_prob_H, cls_prob_O, cls_prob_sp = self.region_classification(fc7_SH, fc7_SO, fc7_SHsp, is_training, initializer, 'classification')
 
