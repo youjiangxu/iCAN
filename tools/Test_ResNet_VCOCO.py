@@ -40,7 +40,7 @@ def parse_args():
     parser.add_argument('--human_thres', dest='human_thres',
             help='Human threshold',
             default=0.8, type=float)
-
+    parser.add_argument('--run_name', dest='run_name', help="run name", default="", type=str)
 
     args = parser.parse_args()
     return args
@@ -63,11 +63,11 @@ if __name__ == '__main__':
 
     vcocoeval      = VCOCOeval(cfg.DATA_DIR + '/' + 'v-coco/data/vcoco/vcoco_test.json', cfg.DATA_DIR + '/' + 'v-coco/data/instances_vcoco_all_2014.json', cfg.DATA_DIR + '/' + 'v-coco/data/splits/vcoco_test.ids')     
 
-    weight = cfg.ROOT_DIR + '/Weights/' + args.model + '/HOI_iter_' + str(args.iteration) + '.ckpt'
+    weight = cfg.ROOT_DIR + '/Weights/'+ args.run_name + args.model + '/HOI_iter_' + str(args.iteration) + '.ckpt'
 
     print ('Human thres = ' + str(args.human_thres) + ', Object thres = ' + str(args.object_thres) + ', iter = ' + str(args.iteration) + ', path = ' + weight ) 
   
-    output_file = cfg.ROOT_DIR + '/Results/' + str(args.iteration) + '_' + args.model + '.pkl'
+    output_file = cfg.ROOT_DIR + '/Results/' + str(args.iteration) + '_' + args.run_name + args.model + '.pkl'
 
     # init session
     tfconfig = tf.ConfigProto(allow_soft_placement=True)
